@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
-scheduler = AsyncIOScheduler()
+scheduler = AsyncIOScheduler(timezone="Europe/Moscow")
 
 class Reminder(StatesGroup):
     waiting_for_text = State()
@@ -99,3 +99,4 @@ if __name__ == "__main__":
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         print("\n🛑 Бот остановлен.")
+
