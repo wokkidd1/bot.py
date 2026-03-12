@@ -71,8 +71,8 @@ async def process_hour(callback: types.CallbackQuery, state: FSMContext):
 @dp.callback_query(F.data.startswith("min_"), Reminder.waiting_for_minute)
 async def process_minute(callback: types.CallbackQuery, state: FSMContext):
     m = callback.data.split("_")[1]
-    data = await state.get_data()
-    dt_str = f"{data['selected_date']} {data['selected_hour']}:{m}"
+    user_data = await state.get_data()
+    dt_str = f"{user_data['selected_date']} {user_data['selected_hour']}:{m}"
     naive_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
     remind_at = MOSCOW_TZ.localize(naive_dt)
 
@@ -83,7 +83,7 @@ async def process_minute(callback: types.CallbackQuery, state: FSMContext):
         send_notification,
         'date',
         run_date=remind_at,
-        args=[callback.message.chat.id, data['reminder_text']]
+        args=[callback.message.chat.id, user_data['reminder_text']]
     )
     
     logging.info(f"ЗАПЛАНИРОВАНО на {remind_at}")
@@ -98,6 +98,8 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
 
 
 
