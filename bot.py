@@ -66,7 +66,7 @@ async def cmd_list(message: types.Message):
 async def cmd_help(message: types.Message):
     builder = InlineKeyboardBuilder()
     # Ссылка на твой профиль
-    builder.button(text="👨‍💻 Написать админу", url="https://t.me")
+    builder.button(text="👨‍💻 Написать админу", url="t.me/wokkiddd")
     
     help_text = (
         "🤖 **Инструкция по использованию:**\n\n"
