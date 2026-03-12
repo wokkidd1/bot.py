@@ -18,8 +18,6 @@ MOSCOW_TZ = pytz.timezone("Europe/Moscow")
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
-
-# Инициализируем планировщик с жесткой привязкой к Москве
 scheduler = AsyncIOScheduler(timezone=MOSCOW_TZ)
 
 class Reminder(StatesGroup):
@@ -36,17 +34,17 @@ def get_time_keyboard(items, prefix):
     return builder.as_markup()
 
 async def send_notification(chat_id, text):
-    # Прямой вывод в логи для проверки срабатывания
-    logging.info(f"!!! СРАБОТКА: Отправка уведомления пользователю {chat_id}")
+    logging.info(f"!!! ПОПЫТКА ОТПРАВКИ: {chat_id}")
     try:
         await bot.send_message(chat_id, f"🔔 **НАПОМИНАНИЕ!**\n\n{text}")
+        logging.info(f"УСПЕШНО ОТПРАВЛЕНО: {chat_id}")
     except Exception as e:
-        logging.error(f"Ошибка отправки: {e}")
+        logging.error(f"ОШИБКА ПРИ ОТПРАВКЕ: {e}")
 
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     await state.clear()
-    await message.answer("📝 О чем тебе напомнить?")
+    await message.answer("📝 О чем напомнить?")
     await state.set_state(Reminder.waiting_for_text)
 
 @dp.message(Reminder.waiting_for_text)
@@ -68,48 +66,46 @@ async def process_hour(callback: types.CallbackQuery, state: FSMContext):
     h = callback.data.split("_")[1]
     await state.update_data(selected_hour=h)
     await state.set_state(Reminder.waiting_for_minute)
-    # Минуты для выбора
-    m_list = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
-    await callback.message.edit_text("⏱ Минуты:", reply_markup=get_time_keyboard(m_list, "min"))
+    minutes = [0, 10, 20, 30, 40, 50]
+    await callback.message.edit_text("⏱ Минуты:", reply_markup=get_time_keyboard(minutes, "min"))
 
 @dp.callback_query(F.data.startswith("min_"), Reminder.waiting_for_minute)
 async def process_minute(callback: types.CallbackQuery, state: FSMContext):
     m = callback.data.split("_")[1]
-    data = await state.get_data()
+    user_data = await state.get_data()
+    dt_str = f"{user_data['selected_date']} {user_data['selected_hour']}:{m}"
     
-    # Собираем дату и время именно в Московском поясе
-    dt_str = f"{data['selected_date']} {data['selected_hour']}:{m}"
     naive_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
     remind_at = MOSCOW_TZ.localize(naive_dt)
 
-    # Проверка: если время уже прошло
-    now_moscow = datetime.now(MOSCOW_TZ)
-    if remind_at <= now_moscow:
-        return await callback.answer("❌ Это время уже в прошлом!", show_alert=True)
+    if remind_at <= datetime.now(MOSCOW_TZ):
+        return await callback.answer("❌ Время в прошлом!", show_alert=True)
 
-    # Добавляем задачу. Передаем run_date как "умный" объект с таймзоной
+    # Добавляем задачу
     scheduler.add_job(
         send_notification,
         'date',
         run_date=remind_at,
-        args=[callback.message.chat.id, data['reminder_text']]
+        args=[callback.message.chat.id, user_data['reminder_text']]
     )
     
-    logging.info(f"ЗАПЛАНИРОВАНО: на {remind_at} (Сейчас в МСК: {now_moscow})")
-
-    await callback.message.edit_text(f"✅ Напомню в {remind_at.strftime('%H:%M')} по Москве.")
+    logging.info(f"--- ЗАПЛАНИРОВАНО НА {remind_at} ---")
+    await callback.message.edit_text(f"✅ Напомню в {remind_at.strftime('%H:%M')}!")
     await state.clear()
 
 async def main():
-    # Запуск планировщика
+    # Запускаем планировщик
     scheduler.start()
-    # Удаляем вебхуки и старые сообщения
+    
+    # Сброс вебхуков
     await bot.delete_webhook(drop_pending_updates=True)
-    logging.info("🚀 БОТ ЗАПУЩЕН")
+    
+    logging.info("🚀 ФИНАЛЬНАЯ ВЕРСИЯ ЗАПУЩЕНА")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
 
