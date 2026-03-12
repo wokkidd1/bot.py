@@ -56,25 +56,29 @@ async def cmd_list(message: types.Message):
     else:
         response = "📋 **Твои активные напоминания:**\n\n"
         for i, job in enumerate(jobs, 1):
-            # Достаем текст из аргументов задачи
             job_text = job.args[1]
-            # Достаем время срабатывания
+            # Корректно отображаем время в МСК
             run_time = job.next_run_time.astimezone(MOSCOW_TZ).strftime('%d.%m.%Y %H:%M')
             response += f"{i}. {run_time} — {job_text}\n"
         await message.answer(response)
 
 @dp.message(Command("help"))
 async def cmd_help(message: types.Message):
+    builder = InlineKeyboardBuilder()
+    # Ссылка на твой профиль
+    builder.button(text="👨‍💻 Написать админу", url="https://t.me")
+    
     help_text = (
         "🤖 **Инструкция по использованию:**\n\n"
-        "/start — создать новое напоминание\n"
-        "/list — список моих напоминаний\n"
-        "/help — показать это сообщение\n\n"
-        "Чтобы создать напоминание, просто напиши /start и следуй инструкциям бота."
+        "🔹 /start — создать новое напоминание\n"
+        "🔹 /list — список моих напоминаний\n"
+        "🔹 /help — помощь и связь\n\n"
+        "Чтобы создать напоминание, просто напиши /start и следуй инструкциям.\n\n"
+        "🆘 Есть вопросы? Нажми на кнопку ниже или напиши @wokkidd"
     )
-    await message.answer(help_text)
+    await message.answer(help_text, reply_markup=builder.as_markup())
 
-# --- ЛОГИКА СОЗДАНИЯ НАПОМИНАНИЯ ---
+# --- ЛОГИКА СОЗДАНИЯ ---
 
 @dp.message(Reminder.waiting_for_text)
 async def process_text(message: types.Message, state: FSMContext):
@@ -103,11 +107,12 @@ async def process_minute(callback: types.CallbackQuery, state: FSMContext):
     m = callback.data.split("_")[1]
     user_data = await state.get_data()
     dt_str = f"{user_data['selected_date']} {user_data['selected_hour']}:{m}"
+    
     naive_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
     remind_at = MOSCOW_TZ.localize(naive_dt)
 
     if remind_at <= datetime.now(MOSCOW_TZ):
-        return await callback.answer("❌ Время уже в прошлом!", show_alert=True)
+        return await callback.answer("❌ Это время уже в прошлом!", show_alert=True)
 
     scheduler.add_job(
         send_notification,
@@ -116,28 +121,29 @@ async def process_minute(callback: types.CallbackQuery, state: FSMContext):
         args=[callback.message.chat.id, user_data['reminder_text']]
     )
     
-    logging.info(f"ЗАПЛАНИРОВАНО на {remind_at}")
+    logging.info(f"ЗАПЛАНИРОВАНО: {remind_at}")
     await callback.message.edit_text(f"✅ Напомню в {remind_at.strftime('%H:%M')} по МСК.")
     await state.clear()
 
-# --- ОБРАБОТЧИК НЕВЕРНЫХ СООБЩЕНИЙ (ДОЛЖЕН БЫТЬ В КОНЦЕ) ---
+# --- ОБРАБОТКА НЕИЗВЕСТНЫХ СООБЩЕНИЙ ---
 
 @dp.message()
 async def unknown_message(message: types.Message):
     await message.answer(
         "🤷‍♂️ Неизвестная команда.\n\n"
         "Доступные команды:\n"
-        "/start — создать напоминание\n"
-        "/list — список напоминаний\n"
-        "/help — помощь"
+        "🔹 /start — создать напоминание\n"
+        "🔹 /list — список напоминаний\n"
+        "🔹 /help — помощь"
     )
 
 async def main():
     scheduler.start()
     await bot.delete_webhook(drop_pending_updates=True)
-    logging.info("🚀 БОТ ОБНОВЛЕН И ГОТОВ")
+    logging.info("🚀 БОТ ОБНОВЛЕН И ГОТОВ К РАБОТЕ")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
